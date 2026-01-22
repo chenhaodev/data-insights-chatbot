@@ -14,6 +14,199 @@ from ydata_profiling import ProfileReport
 import os
 
 
+async def initial_data_exploration(
+    ctx: RunContext[AgentDependencies]
+) -> str:
+    """
+    Perform automatic initial analysis when data is first loaded.
+
+    Provides insights about:
+    - Dataset shape and structure
+    - Column types and distributions
+    - Missing values patterns
+    - Top correlations (potential relationships)
+    - Data quality observations
+    - Suggested starting analyses
+
+    Returns:
+        Formatted initial insights with hypotheses
+    """
+    df = ctx.deps.get_current_dataframe()
+    if df is None:
+        return "Error: No dataset uploaded."
+
+    try:
+        output = "🔍 **Initial Data Exploration**\n\n"
+
+        # 1. Dataset Overview
+        output += f"**Dataset Structure:**\n"
+        output += f"  • {len(df):,} rows × {len(df.columns)} columns\n"
+        output += f"  • Memory usage: {df.memory_usage(deep=True).sum() / 1024**2:.2f} MB\n\n"
+
+        # 2. Column Types Analysis
+        numeric_cols = df.select_dtypes(include=['number']).columns.tolist()
+        categorical_cols = df.select_dtypes(include=['object', 'category']).columns.tolist()
+        datetime_cols = df.select_dtypes(include=['datetime64']).columns.tolist()
+
+        output += f"**Column Types:**\n"
+        output += f"  • {len(numeric_cols)} numeric columns\n"
+        output += f"  • {len(categorical_cols)} categorical columns\n"
+        if datetime_cols:
+            output += f"  • {len(datetime_cols)} datetime columns\n"
+        output += "\n"
+
+        # 3. Missing Values Analysis
+        missing = df.isnull().sum()
+        cols_with_missing = missing[missing > 0]
+        if len(cols_with_missing) > 0:
+            output += f"⚠️ **Missing Values Detected:**\n"
+            for col, count in cols_with_missing.head(5).items():
+                pct = (count / len(df)) * 100
+                output += f"  • {col}: {count:,} ({pct:.1f}%)\n"
+            output += "\n"
+        else:
+            output += "✅ **No missing values** - dataset is complete\n\n"
+
+        # 4. Quick Stats on Numeric Columns (top 3-5)
+        if len(numeric_cols) > 0:
+            output += f"**Numeric Column Highlights:**\n"
+            for col in numeric_cols[:5]:
+                mean_val = df[col].mean()
+                std_val = df[col].std()
+                min_val = df[col].min()
+                max_val = df[col].max()
+
+                # Detect high variability or outliers
+                cv = (std_val / mean_val) if mean_val != 0 else 0
+                output += f"  • {col}: mean={mean_val:.2f}, range=[{min_val:.2f}, {max_val:.2f}]"
+                if cv > 1:
+                    output += f" (high variability, CV={cv:.2f})"
+                output += "\n"
+            output += "\n"
+
+        # 5. Top Correlations (if numeric columns exist)
+        if len(numeric_cols) >= 2:
+            corr_matrix = df[numeric_cols].corr()
+            # Extract upper triangle (avoid duplicates)
+            correlations = []
+            for i in range(len(corr_matrix.columns)):
+                for j in range(i+1, len(corr_matrix.columns)):
+                    col1 = corr_matrix.columns[i]
+                    col2 = corr_matrix.columns[j]
+                    corr_val = corr_matrix.iloc[i, j]
+                    if abs(corr_val) > 0.5:  # Only strong correlations
+                        correlations.append((col1, col2, corr_val))
+
+            if correlations:
+                # Sort by absolute correlation
+                correlations.sort(key=lambda x: abs(x[2]), reverse=True)
+                output += f"🔗 **Strong Correlations Detected:**\n"
+                for col1, col2, corr_val in correlations[:5]:
+                    direction = "positive" if corr_val > 0 else "negative"
+                    output += f"  • {col1} ↔ {col2}: {corr_val:.3f} ({direction})\n"
+                output += "\n"
+
+        # 6. Categorical Insights (top categories by cardinality)
+        if len(categorical_cols) > 0:
+            output += f"**Categorical Columns:**\n"
+            for col in categorical_cols[:5]:
+                unique_count = df[col].nunique()
+                most_common = df[col].mode()[0] if len(df[col].mode()) > 0 else "N/A"
+                output += f"  • {col}: {unique_count} unique values, most common = '{most_common}'\n"
+            output += "\n"
+
+        # 7. Generate Hypotheses and Suggestions
+        output += "💡 **Initial Hypotheses & Observations:**\n"
+
+        hypotheses = []
+
+        # Hypothesis from correlations
+        if len(numeric_cols) >= 2 and correlations:
+            top_corr = correlations[0]
+            hypotheses.append(
+                f"Strong {'positive' if top_corr[2] > 0 else 'negative'} correlation "
+                f"({top_corr[2]:.2f}) between {top_corr[0]} and {top_corr[1]} suggests "
+                f"a potential relationship - consider investigating causation"
+            )
+
+        # Hypothesis from missing values
+        if len(cols_with_missing) > 0:
+            top_missing_col = cols_with_missing.index[0]
+            top_missing_pct = (cols_with_missing.iloc[0] / len(df)) * 100
+            if top_missing_pct > 20:
+                hypotheses.append(
+                    f"High missing rate ({top_missing_pct:.1f}%) in '{top_missing_col}' "
+                    f"might indicate data collection issues or be informative itself"
+                )
+
+        # Hypothesis from data size
+        if len(df) < 100:
+            hypotheses.append(
+                f"Small sample size ({len(df)} rows) may limit statistical power - "
+                f"be cautious with inferential statistics"
+            )
+
+        # Hypothesis from categorical cardinality
+        if len(categorical_cols) > 0:
+            for col in categorical_cols[:3]:
+                unique_count = df[col].nunique()
+                if unique_count > len(df) * 0.8:
+                    hypotheses.append(
+                        f"Column '{col}' has very high cardinality ({unique_count} unique values) - "
+                        f"might be an identifier rather than a useful feature"
+                    )
+                    break
+
+        # Add hypotheses to output
+        if hypotheses:
+            for i, hyp in enumerate(hypotheses[:3], 1):
+                output += f"  {i}. {hyp}\n"
+        else:
+            output += "  • Dataset appears well-structured with no immediate red flags\n"
+
+        output += "\n"
+
+        # 8. Suggest Next Steps
+        output += "🔍 **Suggested Starting Analyses:**\n"
+
+        suggestions = []
+        if len(numeric_cols) >= 2:
+            suggestions.append("Create a correlation heatmap to visualize all relationships")
+        if len(numeric_cols) > 0:
+            suggestions.append(f"Examine distribution of key variables (e.g., {numeric_cols[0]})")
+        if len(categorical_cols) > 0 and len(numeric_cols) > 0:
+            suggestions.append(
+                f"Compare {numeric_cols[0]} across categories of {categorical_cols[0]}"
+            )
+        if datetime_cols:
+            suggestions.append(f"Explore time series patterns in {datetime_cols[0]}")
+        suggestions.append("Generate a comprehensive profile report for detailed EDA")
+
+        for i, sugg in enumerate(suggestions[:5], 1):
+            output += f"  {i}. {sugg}\n"
+
+        output += "\n"
+
+        # 9. Ask guiding question
+        output += "❓ **What would you like to explore first?** "
+        if correlations:
+            output += f"Should I create a correlation heatmap, or would you prefer to dive into the {correlations[0][0]}-{correlations[0][1]} relationship?"
+        elif len(numeric_cols) > 0:
+            output += f"Should I show the distribution of {numeric_cols[0]}, or would you prefer a different analysis?"
+        else:
+            output += "What aspect of the data are you most interested in?"
+
+        # Track in history
+        ctx.deps.add_to_history(
+            query="initial_data_exploration",
+            result="success",
+            tool_used="initial_data_exploration"
+        )
+
+        return output
+
+    except Exception as e:
+        return f"Error during initial exploration: {str(e)}"
 
 
 async def describe_dataset(

@@ -8,8 +8,8 @@
 I want to build a chatbox for data insights analysis: 
 1. suggest to use pandasai (txt2sql), seaborn (stat and data-viz), streamlit (ui) and DeepSeek-API (llm as main controller) as main components.
 2. has many statistic features, from SPSS and Pandas profiling library, such as stat-descrip, time-series analysis, regression and factor analysis, feature heatmap, stat-comparsion (like t-test), correlation (like pearson) etc.
-3. it support uploading EXCELs/CSVs, generate pictures while chating etc.
-4. it support skills or mcps, so chatbox shall be smartly choose the right features for different data-insight-purpose.
+3. it supports uploading EXCELs/CSVs, generate pictures while chating ... and it can be proactive when having more info.
+4. it supports skills or mcps, so chatbox shall be smartly choose the right features for different data-insight-purpose.
 ```
 
 # Auto AI Code

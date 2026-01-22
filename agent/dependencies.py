@@ -24,6 +24,12 @@ class AgentDependencies:
     chart_style: str = "darkgrid"
     max_chart_elements: int = 50
 
+    # Proactive analysis tracking
+    initial_insights_shown: bool = False
+    detected_patterns: List[Dict[str, Any]] = field(default_factory=list)
+    suggested_analyses: List[str] = field(default_factory=list)
+    hypothesis_chain: List[str] = field(default_factory=list)
+
     def get_current_dataframe(self) -> Optional[pd.DataFrame]:
         """
         Get the currently active dataframe.
@@ -65,6 +71,12 @@ class AgentDependencies:
         self.uploaded_dataframes[name] = df
         if self.current_df_name is None:
             self.current_df_name = name
+
+        # Reset proactive analysis state for new dataset
+        self.initial_insights_shown = False
+        self.detected_patterns = []
+        self.suggested_analyses = []
+        self.hypothesis_chain = []
 
     def list_dataframes(self) -> List[str]:
         """

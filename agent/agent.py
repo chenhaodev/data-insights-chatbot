@@ -15,6 +15,7 @@ data_insights_agent = Agent(
 )
 
 # Register all analysis tools
+data_insights_agent.tool(tools.initial_data_exploration)
 data_insights_agent.tool(tools.describe_dataset)
 data_insights_agent.tool(tools.correlation_analysis_tool)
 data_insights_agent.tool(tools.create_visualization)
