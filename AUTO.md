@@ -1,8 +1,7 @@
 # Prepare 
-
-1. Install Claude Code. 
-2. Git clone https://github.com/coleam00/context-engineering-intro
-3. Edit context-engineering-intro/INITIAL.md with following command, and launch claude code, then /generate-prp INITIAL.md 
+> Install Claude Code. 
+> Git clone https://github.com/coleam00/context-engineering-intro
+> Edit context-engineering-intro/INITIAL.md with following command, and launch claude code, then /generate-prp INITIAL.md 
 
 ```<context-engineering-intro/INITIAL.md>
 ## FEATURE:
@@ -14,7 +13,7 @@ I want to build a chatbox for data insights analysis:
 ```
 
 # Auto AI Code
-
+```
 ==============================================================
 
  ▐▛███▜▌   Claude Code v2.1.15
@@ -1329,3 +1328,4 @@ I want to build a chatbox for data insights analysis:
   users to install dependencies and start analyzing their data.
 
 ✻ Crunched for 8m 30s
+```
