@@ -10,6 +10,8 @@ I want to build a chatbox for data insights analysis:
 2. has many statistic features, from SPSS and Pandas profiling library, such as stat-descrip, time-series analysis, regression and factor analysis, feature heatmap, stat-comparsion (like t-test), correlation (like pearson) etc.
 3. it supports uploading EXCELs/CSVs, generate pictures while chating ... and it can be proactive when having more info.
 4. it supports skills or mcps, so chatbox shall be smartly choose the right features for different data-insight-purpose.
+
+NOTE: To avoid bugs, be carefull of tool callings, ... in parallel, response/content missing etc.  
 ```
 
 # Auto AI Code

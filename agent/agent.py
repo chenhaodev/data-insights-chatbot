@@ -11,7 +11,8 @@ from . import tools
 data_insights_agent = Agent(
     get_llm_model(),
     deps_type=AgentDependencies,
-    system_prompt=MAIN_SYSTEM_PROMPT
+    system_prompt=MAIN_SYSTEM_PROMPT,
+    end_strategy='exhaustive'  # Execute all tool calls, not just first one
 )
 
 # Register all analysis tools
