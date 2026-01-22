@@ -1,7 +1,7 @@
 # Prepare 
-> Install Claude Code. 
-> Git clone https://github.com/coleam00/context-engineering-intro
-> Edit context-engineering-intro/INITIAL.md with following command, and launch claude code, then /generate-prp INITIAL.md 
+* Install Claude Code. 
+* Git clone https://github.com/coleam00/context-engineering-intro
+* Edit context-engineering-intro/INITIAL.md with following command, and launch claude code, then /generate-prp INITIAL.md 
 
 ```<context-engineering-intro/INITIAL.md>
 ## FEATURE:
