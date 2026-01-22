@@ -77,7 +77,7 @@ with st.sidebar:
 
             # Preview
             with st.expander("📋 Data Preview"):
-                st.dataframe(df.head(10), use_container_width=True)
+                st.dataframe(df.head(10), width="stretch")
 
             # Column info
             with st.expander("📝 Column Information"):
@@ -87,7 +87,7 @@ with st.sidebar:
                     'Non-Null': [df[col].count() for col in df.columns],
                     'Unique': [df[col].nunique() for col in df.columns]
                 })
-                st.dataframe(col_types, use_container_width=True)
+                st.dataframe(col_types, width="stretch")
 
         except Exception as e:
             st.error(f"Error loading file: {str(e)}")
@@ -154,30 +154,53 @@ if prompt := st.chat_input("Ask a question about your data..."):
                     st.write(response)
 
                     # Check if visualization was created (look for file path in response)
-                    if "temp/charts/" in response:
-                        # Extract file path from response
-                        import re
-                        match = re.search(r'temp/charts/[\w_]+\.png', response)
+                    chart_path = None
+                    import re
+                    import glob
+                    from datetime import datetime, timedelta
+
+                    # Strategy 1: Extract file path from response
+                    if "Saved to:" in response or "temp/charts/" in response:
+                        # Match file path patterns
+                        # Pattern 1: Relative path "temp/charts/filename.png"
+                        match = re.search(r'(temp/charts/[\w\-_]+\.png)', response)
                         if match:
-                            chart_path = match.group(0)
-                            if os.path.exists(chart_path):
-                                st.image(chart_path)
-                                # Store chart path in message
-                                st.session_state.messages.append({
-                                    "role": "assistant",
-                                    "content": response,
-                                    "chart_path": chart_path
-                                })
-                            else:
-                                st.session_state.messages.append({
-                                    "role": "assistant",
-                                    "content": response
-                                })
+                            rel_path = match.group(1)
+                            chart_path = os.path.abspath(rel_path)
                         else:
-                            st.session_state.messages.append({
-                                "role": "assistant",
-                                "content": response
-                            })
+                            # Pattern 2: Absolute path "/path/to/temp/charts/filename.png"
+                            match = re.search(r'(/[^\s]+temp/charts/[\w\-_]+\.png|[A-Za-z]:[^\s]+temp/charts/[\w\-_]+\.png)', response)
+                            if match:
+                                chart_path = match.group(0)
+
+                    # Strategy 2: Fallback - if response mentions visualization but no path found,
+                    # check for recently created files (within last 10 seconds)
+                    if not chart_path and any(keyword in response.lower() for keyword in ["visualization", "heatmap", "chart", "plot", "created", "generated"]):
+                        charts_dir = "temp/charts"
+                        if os.path.exists(charts_dir):
+                            # Get all png files sorted by modification time (newest first)
+                            chart_files = glob.glob(os.path.join(charts_dir, "*.png"))
+                            if chart_files:
+                                newest_file = max(chart_files, key=os.path.getmtime)
+                                # Check if file was created in the last 10 seconds
+                                file_time = datetime.fromtimestamp(os.path.getmtime(newest_file))
+                                if datetime.now() - file_time < timedelta(seconds=10):
+                                    chart_path = newest_file
+
+                    # Display the chart if file exists
+                    if chart_path and os.path.exists(chart_path):
+                        st.image(chart_path, width="stretch", caption="Generated visualization")
+                        st.session_state.messages.append({
+                            "role": "assistant",
+                            "content": response,
+                            "chart_path": chart_path
+                        })
+                    elif chart_path:
+                        st.warning(f"⚠️ Chart file created but not found at: {chart_path}")
+                        st.session_state.messages.append({
+                            "role": "assistant",
+                            "content": response
+                        })
                     else:
                         # Store in history (no chart)
                         st.session_state.messages.append({

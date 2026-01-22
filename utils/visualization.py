@@ -7,7 +7,41 @@ import numpy as np
 from matplotlib.figure import Figure
 from typing import Optional, Tuple
 import os
+import matplotlib.font_manager as fm
 
+# Configure matplotlib to support CJK (Chinese, Japanese, Korean) fonts
+# Try to find and use system CJK fonts
+def configure_cjk_fonts():
+    """Configure matplotlib to use CJK-compatible fonts."""
+    # List of CJK-compatible fonts to try (in order of preference)
+    cjk_fonts = [
+        'PingFang SC',  # macOS Simplified Chinese
+        'PingFang TC',  # macOS Traditional Chinese
+        'Hiragino Sans GB',  # macOS Chinese
+        'Microsoft YaHei',  # Windows Chinese
+        'SimHei',  # Windows Chinese
+        'SimSun',  # Windows Chinese
+        'Noto Sans CJK SC',  # Linux Chinese Simplified
+        'Noto Sans CJK TC',  # Linux Chinese Traditional
+        'Arial Unicode MS',  # Cross-platform fallback
+    ]
+
+    # Get list of available fonts
+    available_fonts = [f.name for f in fm.fontManager.ttflist]
+
+    # Find first available CJK font
+    for font in cjk_fonts:
+        if font in available_fonts:
+            plt.rcParams['font.sans-serif'] = [font, 'DejaVu Sans']
+            plt.rcParams['axes.unicode_minus'] = False  # Fix minus sign display
+            return
+
+    # Fallback: use default sans-serif with unicode support
+    plt.rcParams['font.sans-serif'] = ['DejaVu Sans', 'Arial']
+    plt.rcParams['axes.unicode_minus'] = False
+
+# Configure fonts on module load
+configure_cjk_fonts()
 
 # Set default Seaborn theme
 sns.set_theme(style="darkgrid")

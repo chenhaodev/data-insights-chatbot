@@ -7,10 +7,13 @@ import pandas as pd
 from .dependencies import AgentDependencies
 from .settings import load_settings
 from utils import statistics, visualization
+from utils.html_utils import fix_html_cjk_encoding
 from pandasai import Agent as PandasAIAgent
 from pandasai.llm import OpenAI as PandasAI_OpenAI
 from ydata_profiling import ProfileReport
 import os
+
+
 
 
 async def describe_dataset(
@@ -188,13 +191,22 @@ async def create_visualization(
         # Save figure
         filepath = visualization.save_figure(fig, filename)
 
+        # Convert to relative path if absolute
+        if os.path.isabs(filepath):
+            try:
+                filepath_rel = os.path.relpath(filepath)
+            except ValueError:
+                filepath_rel = filepath
+        else:
+            filepath_rel = filepath
+
         ctx.deps.add_to_history(
             query=f"create_visualization({plot_type})",
             result="success",
             tool_used="create_visualization"
         )
 
-        return f"✅ Visualization created successfully!\nSaved to: {filepath}\n\n💡 The chart is displayed below."
+        return f"✅ Visualization created successfully!\nSaved to: {filepath_rel}\n\n💡 Chart file: {filepath_rel}"
 
     except Exception as e:
         return f"Error creating visualization: {str(e)}"
@@ -444,8 +456,17 @@ async def generate_profile_report(
 
         # Generate profile report in thread pool (blocking operation)
         def _generate():
-            profile = ProfileReport(df, title=f"Profile Report: {ctx.deps.current_df_name}", minimal=True)
+            # Configure ydata-profiling with UTF-8 support
+            profile = ProfileReport(
+                df,
+                title=f"Profile Report: {ctx.deps.current_df_name}",
+                minimal=True,
+                progress_bar=False
+            )
             profile.to_file(filepath)
+
+            # Fix font encoding for Chinese and other Unicode characters
+            fix_html_cjk_encoding(filepath)
 
         await asyncio.to_thread(_generate)
 
