@@ -15,6 +15,25 @@ from agent.agent import data_insights_agent
 from agent.dependencies import AgentDependencies
 from agent.settings import load_settings
 from utils.data_loader import load_csv_or_excel, validate_dataframe
+from pydantic_ai.messages import ModelMessage, ModelRequest, ModelResponse, UserPromptPart, TextPart
+
+
+def convert_to_model_messages(st_messages: list) -> list[ModelMessage]:
+    """Convert Streamlit message history to PydanticAI ModelMessage format.
+
+    Args:
+        st_messages: List of dicts with 'role' and 'content' keys from Streamlit session state
+
+    Returns:
+        List of ModelMessage objects (ModelRequest/ModelResponse) for PydanticAI
+    """
+    model_messages = []
+    for msg in st_messages:
+        if msg["role"] == "user":
+            model_messages.append(ModelRequest(parts=[UserPromptPart(content=msg["content"])]))
+        elif msg["role"] == "assistant":
+            model_messages.append(ModelResponse(parts=[TextPart(content=msg["content"])]))
+    return model_messages
 
 
 # Page configuration
@@ -140,11 +159,16 @@ if prompt := st.chat_input("Ask a question about your data..."):
         with st.chat_message("assistant"):
             with st.spinner("Analyzing..."):
                 try:
-                    # Run agent (async)
+                    # Convert conversation history to PydanticAI format
+                    # Exclude the current message (last one) since it's passed as 'prompt'
+                    message_history = convert_to_model_messages(st.session_state.messages[:-1])
+
+                    # Run agent (async) with full conversation context
                     result = asyncio.run(
                         data_insights_agent.run(
                             prompt,
-                            deps=st.session_state.agent_deps
+                            deps=st.session_state.agent_deps,
+                            message_history=message_history
                         )
                     )
 
