@@ -33,6 +33,15 @@ async def descriptive_statistics(
         else:
             numeric_df = df[columns].select_dtypes(include=[np.number])
 
+        # Filter out columns where >95% of values are NaN (mostly empty columns)
+        valid_cols = []
+        for col in numeric_df.columns:
+            null_percentage = numeric_df[col].isna().sum() / len(numeric_df[col])
+            if null_percentage < 0.95:  # Keep columns with <95% NaN
+                valid_cols.append(col)
+
+        numeric_df = numeric_df[valid_cols]
+
         results = {}
         for col in numeric_df.columns:
             results[col] = {
@@ -73,6 +82,15 @@ async def correlation_analysis(
     """
     def _compute():
         numeric_df = df[columns] if columns else df.select_dtypes(include=[np.number])
+
+        # Filter out columns where >95% of values are NaN (mostly empty columns)
+        valid_cols = []
+        for col in numeric_df.columns:
+            null_percentage = numeric_df[col].isna().sum() / len(numeric_df[col])
+            if null_percentage < 0.95:  # Keep columns with <95% NaN
+                valid_cols.append(col)
+
+        numeric_df = numeric_df[valid_cols]
 
         if method not in ["pearson", "spearman", "kendall"]:
             raise ValueError(f"Invalid method: {method}. Use 'pearson', 'spearman', or 'kendall'")

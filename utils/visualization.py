@@ -63,11 +63,18 @@ def create_distribution_plot(
     Returns:
         matplotlib Figure object
     """
+    # Filter out NaN values for cleaner distribution
+    plot_df = df.dropna(subset=[column])
+
+    # Raise error if insufficient data
+    if len(plot_df) < 2:
+        raise ValueError(f"Column '{column}' has insufficient valid data (need at least 2 values)")
+
     fig, ax = plt.subplots(figsize=figsize)
 
     # Create histogram with KDE overlay
     sns.histplot(
-        data=df,
+        data=plot_df,
         x=column,
         kde=True,
         ax=ax
@@ -95,11 +102,25 @@ def create_correlation_heatmap(
     Returns:
         matplotlib Figure object
     """
+    # Filter out columns/rows where all OFF-DIAGONAL correlations are NaN
+    # This removes non-numeric columns that couldn't be correlated
+    # Create a copy and set diagonal to NaN to check off-diagonal values
+    corr_no_diag = corr_matrix.copy()
+    np.fill_diagonal(corr_no_diag.values, np.nan)
+
+    # Keep only rows/columns that have at least one valid off-diagonal correlation
+    valid_mask = ~corr_no_diag.isna().all(axis=1)
+    filtered_corr = corr_matrix.loc[valid_mask, valid_mask]
+
+    # If all correlations are invalid, use original (edge case)
+    if filtered_corr.empty:
+        filtered_corr = corr_matrix
+
     fig, ax = plt.subplots(figsize=figsize)
 
     # Create heatmap with annotations
     sns.heatmap(
-        corr_matrix,
+        filtered_corr,
         annot=True,
         fmt=".2f",
         cmap="coolwarm",
@@ -136,11 +157,18 @@ def create_scatter_plot(
     Returns:
         matplotlib Figure object
     """
+    # Filter out rows where x or y is NaN
+    plot_df = df.dropna(subset=[x, y])
+
+    # Raise error if insufficient data
+    if len(plot_df) < 2:
+        raise ValueError(f"Insufficient valid data for scatter plot of '{x}' vs '{y}' (need at least 2 points)")
+
     fig, ax = plt.subplots(figsize=figsize)
 
     # Create scatter plot with regression line
     sns.regplot(
-        data=df,
+        data=plot_df,
         x=x,
         y=y,
         ax=ax,
@@ -150,7 +178,7 @@ def create_scatter_plot(
     # Add hue if specified
     if hue:
         sns.scatterplot(
-            data=df,
+            data=plot_df,
             x=x,
             y=y,
             hue=hue,
@@ -185,11 +213,20 @@ def create_box_plot(
     Returns:
         matplotlib Figure object
     """
+    # Filter out rows where the target column is NaN
+    plot_df = df.dropna(subset=[column])
+
+    # If grouped, also filter out groups with <2 valid values (can't create meaningful box plot)
+    if group_by:
+        group_counts = plot_df.groupby(group_by)[column].count()
+        valid_groups = group_counts[group_counts >= 2].index
+        plot_df = plot_df[plot_df[group_by].isin(valid_groups)]
+
     fig, ax = plt.subplots(figsize=figsize)
 
     if group_by:
         sns.boxplot(
-            data=df,
+            data=plot_df,
             x=group_by,
             y=column,
             ax=ax
@@ -197,7 +234,7 @@ def create_box_plot(
         ax.set_title(f"{column} by {group_by}")
     else:
         sns.boxplot(
-            data=df,
+            data=plot_df,
             y=column,
             ax=ax
         )
@@ -228,11 +265,20 @@ def create_violin_plot(
     Returns:
         matplotlib Figure object
     """
+    # Filter out rows where the target column is NaN
+    plot_df = df.dropna(subset=[column])
+
+    # If grouped, also filter out groups with <2 valid values
+    if group_by:
+        group_counts = plot_df.groupby(group_by)[column].count()
+        valid_groups = group_counts[group_counts >= 2].index
+        plot_df = plot_df[plot_df[group_by].isin(valid_groups)]
+
     fig, ax = plt.subplots(figsize=figsize)
 
     if group_by:
         sns.violinplot(
-            data=df,
+            data=plot_df,
             x=group_by,
             y=column,
             ax=ax
@@ -240,7 +286,7 @@ def create_violin_plot(
         ax.set_title(f"{column} by {group_by}")
     else:
         sns.violinplot(
-            data=df,
+            data=plot_df,
             y=column,
             ax=ax
         )
