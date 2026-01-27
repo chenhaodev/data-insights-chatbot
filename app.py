@@ -138,8 +138,32 @@ for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.write(message["content"])
 
-        # Display charts if present in temp directory
-        if "chart_path" in message:
+        # Display charts if present (handle both old single chart_path and new multiple chart_paths)
+        if "chart_paths" in message:
+            # New format: multiple charts
+            chart_paths = message["chart_paths"]
+            if chart_paths:
+                st.markdown("---")
+                st.markdown("### 📊 Generated Visualizations")
+                if len(chart_paths) == 1:
+                    if os.path.exists(chart_paths[0]):
+                        st.image(chart_paths[0], use_container_width=True)
+                elif len(chart_paths) == 2:
+                    col1, col2 = st.columns(2)
+                    for idx, col in enumerate([col1, col2]):
+                        if os.path.exists(chart_paths[idx]):
+                            with col:
+                                st.image(chart_paths[idx], use_container_width=True)
+                else:
+                    for i in range(0, len(chart_paths), 2):
+                        cols = st.columns(2)
+                        for j, col in enumerate(cols):
+                            idx = i + j
+                            if idx < len(chart_paths) and os.path.exists(chart_paths[idx]):
+                                with col:
+                                    st.image(chart_paths[idx], use_container_width=True)
+        elif "chart_path" in message:
+            # Old format: single chart (for backward compatibility)
             if os.path.exists(message["chart_path"]):
                 st.image(message["chart_path"])
 
@@ -159,6 +183,13 @@ if prompt := st.chat_input("Ask a question about your data..."):
         with st.chat_message("assistant"):
             with st.spinner("Analyzing..."):
                 try:
+                    # Track existing charts before agent run
+                    import glob
+                    charts_dir = "temp/charts"
+                    existing_charts = set()
+                    if os.path.exists(charts_dir):
+                        existing_charts = set(glob.glob(os.path.join(charts_dir, "*.png")))
+
                     # Convert conversation history to PydanticAI format
                     # Exclude the current message (last one) since it's passed as 'prompt'
                     message_history = convert_to_model_messages(st.session_state.messages[:-1])
@@ -174,59 +205,98 @@ if prompt := st.chat_input("Ask a question about your data..."):
 
                     response = result.output
 
+                    # Check if visualizations were created BEFORE displaying response
+                    # This ensures we capture all charts created during the agent run
+                    chart_paths = []
+                    import re
+                    from datetime import datetime, timedelta
+
+                    # Strategy 1: Compare before/after to find NEW charts created during this run
+                    if os.path.exists(charts_dir):
+                        current_charts = set(glob.glob(os.path.join(charts_dir, "*.png")))
+                        new_charts = current_charts - existing_charts
+
+                        if new_charts:
+                            # Sort by modification time (newest first)
+                            new_charts_with_time = [
+                                (f, os.path.getmtime(f)) for f in new_charts
+                            ]
+                            new_charts_with_time.sort(key=lambda x: x[1], reverse=True)
+                            chart_paths = [f for f, _ in new_charts_with_time]
+
+                    # Strategy 2: Extract file paths from response text (as backup)
+                    if not chart_paths and "temp/charts/" in response:
+                        # Pattern: Find all relative paths "temp/charts/filename.png"
+                        matches = re.findall(r'temp/charts/[^\s]+\.png', response)
+                        for match in matches:
+                            try:
+                                chart_path = os.path.abspath(match)
+                                if os.path.exists(chart_path) and chart_path not in chart_paths:
+                                    chart_paths.append(chart_path)
+                            except:
+                                pass
+
+                    # Strategy 3: Fallback - check for very recent files if response mentions visualizations
+                    if not chart_paths and any(keyword in response.lower() for keyword in ["visualization", "visualisation", "heatmap", "chart", "plot", "created", "generated", "distribution", "scatter", "box plot", "violin"]):
+                        if os.path.exists(charts_dir):
+                            chart_files = glob.glob(os.path.join(charts_dir, "*.png"))
+                            if chart_files:
+                                # Get files created in the last 30 seconds
+                                current_time = datetime.now()
+                                recent_files = []
+                                for chart_file in chart_files:
+                                    file_time = datetime.fromtimestamp(os.path.getmtime(chart_file))
+                                    if current_time - file_time < timedelta(seconds=30):
+                                        recent_files.append((chart_file, file_time))
+
+                                # Sort by creation time (newest first)
+                                recent_files.sort(key=lambda x: x[1], reverse=True)
+                                chart_paths = [f for f, _ in recent_files]
+
                     # Display response
                     st.write(response)
 
-                    # Check if visualization was created (look for file path in response)
-                    chart_path = None
-                    import re
-                    import glob
-                    from datetime import datetime, timedelta
+                    # Debug info to help troubleshoot
+                    if chart_paths:
+                        st.info(f"🔍 Detected {len(chart_paths)} visualization(s)")
+                    elif any(keyword in response.lower() for keyword in ["plot", "chart", "visualization"]):
+                        st.warning("⚠️ Response mentions visualizations but none were detected. This might be a detection issue.")
 
-                    # Strategy 1: Extract file path from response
-                    if "Saved to:" in response or "temp/charts/" in response:
-                        # Match file path patterns
-                        # Pattern 1: Relative path "temp/charts/filename.png"
-                        match = re.search(r'(temp/charts/[\w\-_]+\.png)', response)
-                        if match:
-                            rel_path = match.group(1)
-                            chart_path = os.path.abspath(rel_path)
+                    # Display all charts if any exist
+                    if chart_paths:
+                        # Remove duplicates while preserving order
+                        chart_paths = list(dict.fromkeys(chart_paths))
+
+                        st.markdown("---")
+                        st.markdown("### 📊 Generated Visualizations")
+
+                        # Display images in columns if multiple, or single if one
+                        if len(chart_paths) == 1:
+                            st.image(chart_paths[0], use_container_width=True, caption="Generated visualization")
+                        elif len(chart_paths) == 2:
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                st.image(chart_paths[0], use_container_width=True, caption=f"Visualization 1")
+                            with col2:
+                                st.image(chart_paths[1], use_container_width=True, caption=f"Visualization 2")
                         else:
-                            # Pattern 2: Absolute path "/path/to/temp/charts/filename.png"
-                            match = re.search(r'(/[^\s]+temp/charts/[\w\-_]+\.png|[A-Za-z]:[^\s]+temp/charts/[\w\-_]+\.png)', response)
-                            if match:
-                                chart_path = match.group(0)
+                            # For 3+ images, display in rows of 2
+                            for i in range(0, len(chart_paths), 2):
+                                cols = st.columns(2)
+                                for j, col in enumerate(cols):
+                                    idx = i + j
+                                    if idx < len(chart_paths):
+                                        with col:
+                                            st.image(chart_paths[idx], use_container_width=True, caption=f"Visualization {idx + 1}")
 
-                    # Strategy 2: Fallback - if response mentions visualization but no path found,
-                    # check for recently created files (within last 10 seconds)
-                    if not chart_path and any(keyword in response.lower() for keyword in ["visualization", "heatmap", "chart", "plot", "created", "generated"]):
-                        charts_dir = "temp/charts"
-                        if os.path.exists(charts_dir):
-                            # Get all png files sorted by modification time (newest first)
-                            chart_files = glob.glob(os.path.join(charts_dir, "*.png"))
-                            if chart_files:
-                                newest_file = max(chart_files, key=os.path.getmtime)
-                                # Check if file was created in the last 10 seconds
-                                file_time = datetime.fromtimestamp(os.path.getmtime(newest_file))
-                                if datetime.now() - file_time < timedelta(seconds=10):
-                                    chart_path = newest_file
-
-                    # Display the chart if file exists
-                    if chart_path and os.path.exists(chart_path):
-                        st.image(chart_path, width="stretch", caption="Generated visualization")
+                        # Store message with all chart paths
                         st.session_state.messages.append({
                             "role": "assistant",
                             "content": response,
-                            "chart_path": chart_path
-                        })
-                    elif chart_path:
-                        st.warning(f"⚠️ Chart file created but not found at: {chart_path}")
-                        st.session_state.messages.append({
-                            "role": "assistant",
-                            "content": response
+                            "chart_paths": chart_paths  # Store as list
                         })
                     else:
-                        # Store in history (no chart)
+                        # Store in history (no charts)
                         st.session_state.messages.append({
                             "role": "assistant",
                             "content": response

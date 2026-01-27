@@ -8,40 +8,90 @@ from matplotlib.figure import Figure
 from typing import Optional, Tuple
 import os
 import matplotlib.font_manager as fm
+import sys
 
-# Configure matplotlib to support CJK (Chinese, Japanese, Korean) fonts
-# Try to find and use system CJK fonts
-def configure_cjk_fonts():
-    """Configure matplotlib to use CJK-compatible fonts."""
-    # List of CJK-compatible fonts to try (in order of preference)
-    cjk_fonts = [
-        'PingFang SC',  # macOS Simplified Chinese
-        'PingFang TC',  # macOS Traditional Chinese
-        'Hiragino Sans GB',  # macOS Chinese
-        'Microsoft YaHei',  # Windows Chinese
-        'SimHei',  # Windows Chinese
-        'SimSun',  # Windows Chinese
-        'Noto Sans CJK SC',  # Linux Chinese Simplified
-        'Noto Sans CJK TC',  # Linux Chinese Traditional
-        'Arial Unicode MS',  # Cross-platform fallback
-    ]
+# Global variable to store the selected CJK font
+_CJK_FONT = None
+
+def get_cjk_font():
+    """Get or detect CJK-compatible font."""
+    global _CJK_FONT
+
+    if _CJK_FONT is not None:
+        return _CJK_FONT
 
     # Get list of available fonts
-    available_fonts = [f.name for f in fm.fontManager.ttflist]
+    available_fonts = {f.name for f in fm.fontManager.ttflist}
+
+    # List of CJK-compatible fonts to try (in order of preference)
+    # Use partial matching for flexibility
+    cjk_font_patterns = [
+        ('PingFang', ['PingFang SC', 'PingFang TC', 'PingFang HK']),  # macOS
+        ('STHeiti', ['STHeiti', 'Heiti SC', 'Heiti TC']),  # macOS System font
+        ('Songti', ['Songti SC', 'Songti TC']),  # macOS
+        ('Hiragino Sans GB', ['Hiragino Sans GB']),  # macOS
+        ('Microsoft YaHei', ['Microsoft YaHei']),  # Windows
+        ('SimHei', ['SimHei']),  # Windows
+        ('SimSun', ['SimSun']),  # Windows
+        ('Noto Sans CJK', ['Noto Sans CJK SC', 'Noto Sans CJK TC']),  # Linux
+        ('WenQuanYi', ['WenQuanYi Zen Hei', 'WenQuanYi Micro Hei']),  # Linux
+        ('Arial Unicode MS', ['Arial Unicode MS']),  # Cross-platform fallback
+    ]
 
     # Find first available CJK font
-    for font in cjk_fonts:
-        if font in available_fonts:
-            plt.rcParams['font.sans-serif'] = [font, 'DejaVu Sans']
-            plt.rcParams['axes.unicode_minus'] = False  # Fix minus sign display
-            return
+    font_found = False
+    selected_font = None
 
-    # Fallback: use default sans-serif with unicode support
-    plt.rcParams['font.sans-serif'] = ['DejaVu Sans', 'Arial']
+    for pattern, font_names in cjk_font_patterns:
+        # Check for exact matches first
+        for font_name in font_names:
+            if font_name in available_fonts:
+                selected_font = font_name
+                font_found = True
+                break
+
+        # If no exact match, try partial match
+        if not font_found:
+            for available_font in available_fonts:
+                if pattern in available_font:
+                    selected_font = available_font
+                    font_found = True
+                    break
+
+        if font_found:
+            break
+
+    # If no CJK font found, use platform-specific fallback
+    if not font_found or selected_font is None:
+        if sys.platform == 'darwin':
+            # macOS: Try AppleGothic or any available system font
+            fallback_fonts = ['AppleGothic', 'Apple SD Gothic Neo', 'Arial Unicode MS']
+        elif sys.platform == 'win32':
+            # Windows
+            fallback_fonts = ['Microsoft YaHei', 'SimHei', 'SimSun']
+        else:
+            # Linux
+            fallback_fonts = ['Noto Sans CJK SC', 'WenQuanYi Zen Hei']
+
+        # Find first available fallback
+        for font in fallback_fonts:
+            if font in available_fonts:
+                selected_font = font
+                break
+
+    # Cache the result
+    _CJK_FONT = selected_font if selected_font else 'DejaVu Sans'
+    return _CJK_FONT
+
+def apply_cjk_font():
+    """Apply CJK font configuration to current matplotlib settings."""
+    cjk_font = get_cjk_font()
+    plt.rcParams['font.sans-serif'] = [cjk_font, 'DejaVu Sans', 'Arial']
     plt.rcParams['axes.unicode_minus'] = False
+    plt.rcParams['font.family'] = 'sans-serif'
 
 # Configure fonts on module load
-configure_cjk_fonts()
+apply_cjk_font()
 
 # Set default Seaborn theme
 sns.set_theme(style="darkgrid")
@@ -63,6 +113,9 @@ def create_distribution_plot(
     Returns:
         matplotlib Figure object
     """
+    # Apply CJK font configuration
+    apply_cjk_font()
+
     # Filter out NaN values for cleaner distribution
     plot_df = df.dropna(subset=[column])
 
@@ -102,6 +155,9 @@ def create_correlation_heatmap(
     Returns:
         matplotlib Figure object
     """
+    # Apply CJK font configuration
+    apply_cjk_font()
+
     # Filter out columns/rows where all OFF-DIAGONAL correlations are NaN
     # This removes non-numeric columns that couldn't be correlated
     # Create a copy and set diagonal to NaN to check off-diagonal values
@@ -157,6 +213,9 @@ def create_scatter_plot(
     Returns:
         matplotlib Figure object
     """
+    # Apply CJK font configuration
+    apply_cjk_font()
+
     # Filter out rows where x or y is NaN
     plot_df = df.dropna(subset=[x, y])
 
@@ -213,6 +272,9 @@ def create_box_plot(
     Returns:
         matplotlib Figure object
     """
+    # Apply CJK font configuration
+    apply_cjk_font()
+
     # Filter out rows where the target column is NaN
     plot_df = df.dropna(subset=[column])
 
@@ -265,6 +327,9 @@ def create_violin_plot(
     Returns:
         matplotlib Figure object
     """
+    # Apply CJK font configuration
+    apply_cjk_font()
+
     # Filter out rows where the target column is NaN
     plot_df = df.dropna(subset=[column])
 
@@ -312,6 +377,9 @@ def create_pairplot(
     Returns:
         matplotlib Figure object from PairGrid
     """
+    # Apply CJK font configuration
+    apply_cjk_font()
+
     if columns:
         plot_df = df[columns]
     else:
