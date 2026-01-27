@@ -31,15 +31,15 @@ NOTE: To avoid bugs, be carefull of tool callings, ... in parallel, response/con
   INITIAL.md. Let me start by reading the feature file to understand what needs
   to be created.
 
-⏺ Read(~/Github/mini-data-insights-cc/context-engineering-intro/INITIAL.md)
+⏺ Read(~/Github/data-insights-chatbot/context-engineering-intro/INITIAL.md)
   ⎿  Read 7 lines
 
 ⏺ Now let me create a comprehensive todo list and begin the research process.
 
-⏺ Read(~/Github/mini-data-insights-cc/context-engineering-intro/PLANNING.md)
+⏺ Read(~/Github/data-insights-chatbot/context-engineering-intro/PLANNING.md)
   ⎿  Error reading file
 
-⏺ Read(~/Github/mini-data-insights-cc/context-engineering-intro/TASK.md)
+⏺ Read(~/Github/data-insights-chatbot/context-engineering-intro/TASK.md)
   ⎿  Error reading file
 
 ⏺ Search(pattern: "**/*.py")
